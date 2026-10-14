@@ -1,0 +1,94 @@
+<Window x:Class="OmniLux.MainWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+ Title="OmniLux" Style="{StaticResource {x:Type Window}}" Width="930" Height="700" MinWidth="740" MinHeight="510" WindowStartupLocation="CenterScreen"
+ Icon="Assets/OmniLux.ico" Closing="Window_Closing" StateChanged="Window_StateChanged" SourceInitialized="Window_SourceInitialized">
+ <shell:WindowChrome.WindowChrome><shell:WindowChrome CaptionHeight="44" ResizeBorderThickness="6" CornerRadius="8" GlassFrameThickness="0" UseAeroCaptionButtons="False" /></shell:WindowChrome.WindowChrome>
+ <Grid>
+  <Grid.RowDefinitions><RowDefinition Height="44" /><RowDefinition Height="*" /><RowDefinition Height="38" /></Grid.RowDefinitions>
+  <Border Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="0,0,0,1">
+   <Grid Margin="18,0,0,0">
+    <StackPanel Orientation="Horizontal"><Image Source="Assets/OmniLux.ico" Width="23" Height="23" Margin="0,0,9,0" /><TextBlock Text="OmniLux" FontSize="14" FontWeight="Medium" /><TextBlock Text="DDC/CI" Style="{StaticResource Caption}" FontSize="10" Margin="13,0,0,0" /></StackPanel>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+     <Button Click="Minimize_Click" Style="{StaticResource QuietButton}" Width="46" Padding="0" AutomationProperties.Name="Minimize to tray"><TextBlock Text="&#xE921;" Style="{StaticResource Glyph}" FontSize="12" /></Button>
+     <Button Click="Maximize_Click" Style="{StaticResource QuietButton}" Width="46" Padding="0" AutomationProperties.Name="Maximize"><TextBlock Text="&#xE922;" Style="{StaticResource Glyph}" FontSize="12" /></Button>
+     <Button Click="Close_Click" Style="{StaticResource QuietButton}" Width="46" Padding="0" AutomationProperties.Name="Close to tray"><TextBlock Text="&#xE8BB;" Style="{StaticResource Glyph}" FontSize="12" /></Button>
+    </StackPanel>
+   </Grid>
+  </Border>
+  <Grid Grid.Row="1">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="180" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+   <Border Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="0,0,1,0" Padding="12,22,12,16">
+    <Grid>
+     <StackPanel>
+      <RadioButton x:Name="MonitorsNav" GroupName="Navigation" IsChecked="True" Style="{StaticResource NavButton}" Checked="Navigation_Checked" Tag="Monitors" AutomationProperties.Name="Monitors"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE7F4;" Style="{StaticResource Glyph}" Margin="0,0,12,0" /><TextBlock Text="Monitors" /></StackPanel></RadioButton>
+      <RadioButton x:Name="TimersNav" GroupName="Navigation" Style="{StaticResource NavButton}" Checked="Navigation_Checked" Tag="Timers" AutomationProperties.Name="Timers"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE823;" Style="{StaticResource Glyph}" Margin="0,0,12,0" /><TextBlock Text="Timers" /></StackPanel></RadioButton>
+      <RadioButton x:Name="SettingsNav" GroupName="Navigation" Style="{StaticResource NavButton}" Checked="Navigation_Checked" Tag="Settings" AutomationProperties.Name="Settings"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE713;" Style="{StaticResource Glyph}" Margin="0,0,12,0" /><TextBlock Text="Settings" /></StackPanel></RadioButton>
+     </StackPanel>
+     <StackPanel VerticalAlignment="Bottom" Margin="14,0,0,0"><TextBlock Text="Hardware brightness" Style="{StaticResource Caption}" /><TextBlock Text="v0.1.0" Style="{StaticResource Caption}" FontSize="11" Margin="0,5,0,0" /></StackPanel>
+    </Grid>
+   </Border>
+   <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <Grid Margin="26,24,26,18">
+     <StackPanel x:Name="MonitorsPage">
+      <Grid Margin="0,0,0,22">
+       <StackPanel><TextBlock Text="Monitors" FontSize="24" FontWeight="Medium" /><TextBlock Text="{Binding MonitorCount}" Style="{StaticResource Caption}" Margin="0,6,0,0" /></StackPanel>
+       <Button x:Name="RefreshButton" Click="Refresh_Click" IsEnabled="{Binding CanRefresh}" HorizontalAlignment="Right" VerticalAlignment="Center" Style="{StaticResource QuietButton}" ToolTip="Read connected displays and brightness" AutomationProperties.Name="Refresh monitors"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE72C;" Style="{StaticResource Glyph}" FontSize="16" Margin="0,0,8,0" /><TextBlock Text="Refresh" /></StackPanel></Button>
+      </Grid>
+      <Border Style="{StaticResource Card}" IsEnabled="{Binding CanRefresh}" Visibility="{Binding HasAdjustable, Converter={StaticResource BoolVisibility}}">
+       <StackPanel>
+        <Grid><TextBlock Text="All adjustable displays" FontSize="14" FontWeight="Medium" /><TextBlock Text="{Binding AllBrightnessText}" HorizontalAlignment="Right" FontSize="16" Foreground="{DynamicResource AccentBrush}" /></Grid>
+        <Slider x:Name="AllSlider" Value="{Binding AllBrightness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,14,0,8" AutomationProperties.Name="All monitors brightness" />
+        <StackPanel Orientation="Horizontal"><Button Content="20%" Tag="20" Click="Preset_Click" Padding="14,5" Margin="0,0,8,0" /><Button Content="50%" Tag="50" Click="Preset_Click" Padding="14,5" Margin="0,0,8,0" /><Button Content="80%" Tag="80" Click="Preset_Click" Padding="14,5" /></StackPanel>
+       </StackPanel>
+      </Border>
+      <ItemsControl x:Name="MonitorItems" ItemsSource="{Binding Monitors}" IsEnabled="{Binding CanRefresh}">
+       <ItemsControl.ItemTemplate><DataTemplate>
+        <Border Style="{StaticResource Card}">
+         <StackPanel>
+          <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+           <Border Width="43" Height="43" Background="{DynamicResource SelectionBrush}" CornerRadius="8" Margin="0,0,13,0"><TextBlock Text="&#xE7F4;" Style="{StaticResource Glyph}" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" /></Border>
+           <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontSize="15" FontWeight="Medium" TextWrapping="Wrap" /><TextBlock Text="{Binding Connection}" Style="{StaticResource Caption}" Margin="0,4,0,0" /></StackPanel>
+           <TextBlock Grid.Column="2" Text="{Binding BrightnessText}" FontSize="26" FontWeight="Light" Margin="16,0,0,0" />
+          </Grid>
+          <Slider Value="{Binding Brightness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanControl}" Visibility="{Binding CanControl, Converter={StaticResource BoolVisibility}}" Margin="0,16,0,7" AutomationProperties.Name="{Binding Name, StringFormat={}{0} brightness}" />
+          <Grid Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding Status}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,14,0" AutomationProperties.LiveSetting="Polite" /><TextBlock Grid.Column="1" Text="{Binding Protocol}" Style="{StaticResource Caption}" FontSize="11" VerticalAlignment="Top" /></Grid>
+         </StackPanel>
+        </Border>
+       </DataTemplate></ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Border Style="{StaticResource Card}" Visibility="{Binding HasNoMonitors, Converter={StaticResource BoolVisibility}}"><StackPanel HorizontalAlignment="Center" Margin="20"><TextBlock Text="&#xE7F4;" Style="{StaticResource Glyph}" FontSize="32" HorizontalAlignment="Center" Margin="0,0,0,14" /><TextBlock Text="No monitors found" FontSize="17" HorizontalAlignment="Center" /><TextBlock Text="Connect a display and refresh." Style="{StaticResource Caption}" Margin="0,8,0,0" HorizontalAlignment="Center" /></StackPanel></Border>
+     </StackPanel>
+     <StackPanel x:Name="TimersPage" Visibility="Collapsed">
+      <Grid Margin="0,0,0,22"><StackPanel><TextBlock Text="Timers" FontSize="24" FontWeight="Medium" /><TextBlock Text="{Binding TimerSummary}" Style="{StaticResource Caption}" Margin="0,6,0,0" /></StackPanel><Button x:Name="AddTimerButton" Content="+  Add timer" Style="{StaticResource AccentButton}" HorizontalAlignment="Right" VerticalAlignment="Center" Click="AddTimer_Click" /></Grid>
+      <Border Style="{StaticResource Card}" Padding="18,14"><CheckBox Content="Pause brightness timers" IsChecked="{Binding TimersPaused}" ToolTip="Resume applies the latest missed setting for each connected display." /></Border>
+      <ItemsControl x:Name="TimerItems" ItemsSource="{Binding Timers}"><ItemsControl.ItemTemplate><DataTemplate>
+       <Border Style="{StaticResource Card}"><Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <CheckBox IsChecked="{Binding Enabled, Mode=TwoWay}" Margin="0,0,15,0" AutomationProperties.Name="{Binding Name, StringFormat=Enable {0}}" />
+        <StackPanel Grid.Column="1"><TextBlock Text="{Binding Name}" FontWeight="Medium" FontSize="14" TextWrapping="Wrap" /><TextBlock Text="{Binding Target}" Style="{StaticResource Caption}" Margin="0,5,0,0" TextWrapping="Wrap" /><StackPanel Orientation="Horizontal" Margin="0,5,0,0"><TextBlock Text="{Binding Kind}" Style="{StaticResource Caption}" Margin="0,0,10,0" /><TextBlock Text="{Binding TimeText}" Style="{StaticResource Caption}" /><TextBlock Text="{Binding State}" Style="{StaticResource Caption}" Margin="10,0,0,0" /></StackPanel></StackPanel>
+        <TextBlock Grid.Column="2" Text="{Binding Brightness}" FontSize="22" Margin="15,0,15,0" />
+        <Button Grid.Column="3" Click="EditTimer_Click" Style="{StaticResource QuietButton}" Padding="9" ToolTip="Edit timer" AutomationProperties.Name="{Binding Name, StringFormat=Edit {0}}"><TextBlock Text="&#xE70F;" Style="{StaticResource Glyph}" FontSize="16" /></Button>
+        <Button Grid.Column="4" Click="DeleteTimer_Click" Style="{StaticResource QuietButton}" Padding="9" ToolTip="Remove timer" AutomationProperties.Name="{Binding Name, StringFormat=Remove {0}}"><TextBlock Text="&#xE74D;" Style="{StaticResource Glyph}" FontSize="16" /></Button>
+       </Grid></Border>
+      </DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+      <Border Style="{StaticResource Card}" Visibility="{Binding HasNoTimers, Converter={StaticResource BoolVisibility}}"><StackPanel Margin="15" HorizontalAlignment="Center"><TextBlock Text="&#xE823;" Style="{StaticResource Glyph}" FontSize="32" HorizontalAlignment="Center" Margin="0,0,0,14" /><TextBlock Text="Set brightness on your schedule" FontSize="17" HorizontalAlignment="Center" /><TextBlock Text="Use a countdown or choose a daily time." Style="{StaticResource Caption}" Margin="0,8,0,0" HorizontalAlignment="Center" /></StackPanel></Border>
+     </StackPanel>
+     <StackPanel x:Name="SettingsPage" Visibility="Collapsed">
+      <TextBlock Text="Settings" FontSize="24" FontWeight="Medium" Margin="0,0,0,22" />
+      <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Startup" FontSize="15" FontWeight="Medium" Margin="0,0,0,16" /><CheckBox x:Name="StartupCheck" Content="Start OmniLux when I sign in to Windows" IsChecked="{Binding StartupEnabled, Mode=TwoWay}" /><TextBlock Text="Starts quietly in the system tray." Style="{StaticResource Caption}" Margin="20,9,0,0" /></StackPanel></Border>
+      <Border Style="{StaticResource Card}"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="170" /></Grid.ColumnDefinitions><TextBlock Text="Appearance" FontSize="15" FontWeight="Medium" /><ComboBox x:Name="ThemePicker" Grid.Column="1" SelectedItem="{Binding Theme, Mode=TwoWay}" AutomationProperties.Name="Appearance" /></Grid></Border>
+      <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="System tray" FontSize="15" FontWeight="Medium" /><TextBlock Text="Closing or minimizing the window keeps monitor timers running.&#x0a;Use Exit in the tray menu to stop OmniLux." Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,12,0,0" LineHeight="20" /></StackPanel></Border>
+      <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="DDC/CI" FontSize="15" FontWeight="Medium" /><TextBlock Text="Enable DDC/CI in your monitor’s on-screen menu. Some laptop panels, HDR modes, docks, and adapters do not expose hardware brightness." Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,12,0,0" LineHeight="20" /><Button Content="Windows display settings" Click="DisplaySettings_Click" HorizontalAlignment="Left" Margin="0,14,0,0" /></StackPanel></Border>
+      <Border Style="{StaticResource Card}"><StackPanel><TextBlock Text="Local settings and activity" FontSize="15" FontWeight="Medium" /><TextBlock Text="{Binding StoragePath}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,12,0,0" /><StackPanel Orientation="Horizontal" Margin="0,14,0,0"><Button Content="Open folder" Click="OpenSettings_Click" Margin="0,0,8,0" /><Button Content="Reset timers and settings" Click="ResetSettings_Click" /></StackPanel></StackPanel></Border>
+      <Button Content="Exit OmniLux" Click="Exit_Click" HorizontalAlignment="Left" />
+     </StackPanel>
+    </Grid>
+   </ScrollViewer>
+  </Grid>
+  <Border Grid.Row="2" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="0,1,0,0" Padding="18,0">
+   <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,9,0" /><TextBlock Grid.Column="1" Text="{Binding Status}" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Status}" AutomationProperties.LiveSetting="Polite" /><TextBlock Grid.Column="2" Text="{Binding TimerSummary}" Style="{StaticResource Caption}" FontSize="11" Margin="20,0,0,0" /></Grid>
+  </Border>
+ </Grid>
+</Window>

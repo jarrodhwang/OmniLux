@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/OmniLux.ico</ApplicationIcon>
+    <AssemblyName>OmniLux</AssemblyName>
+    <Product>OmniLux</Product>
+    <Description>Monitor brightness and timers through DDC/CI</Description>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../OmniLux.Core/OmniLux.Core.csproj" />
+    <Resource Include="Assets/OmniLux.ico" />
+  </ItemGroup>
+</Project>
