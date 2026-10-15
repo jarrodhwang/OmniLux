@@ -8,7 +8,7 @@
     <ApplicationIcon>Assets/OmniLux.ico</ApplicationIcon>
     <AssemblyName>OmniLux</AssemblyName>
     <Product>OmniLux</Product>
-    <Description>Monitor brightness and timers through DDC/CI</Description>
+    <Description>Tray brightness, contrast and timers through DDC/CI</Description>
     <PublishTrimmed>false</PublishTrimmed>
   </PropertyGroup>
   <ItemGroup>

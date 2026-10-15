@@ -34,8 +34,19 @@ jobs:
         run: |
           ./tools/Restore-InstallerTools.ps1
           ./tools/Build-Installer.ps1
+      - name: Verify installer lifecycle on an interactive runner
+        shell: pwsh
+        run: |
+          if ([Environment]::UserInteractive) {
+            ./tools/Test-Installer.ps1
+          } else {
+            Write-Host 'Native UI checks require an interactive Windows desktop. Run tools/Build.ps1 -Test locally.'
+          }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: OmniLux-windows-x64
-          path: dist/*
+          path: |
+            dist/*
+            build/validation/**/smoke.json
+            build/validation/**/installer.json
           if-no-files-found: error

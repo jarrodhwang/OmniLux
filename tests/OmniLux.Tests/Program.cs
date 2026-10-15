@@ -14,13 +14,13 @@ BrightnessSchedule Once(int brightness = 40, string? id = null) => new()
 { Kind = ScheduleKind.Countdown, Brightness = brightness, MonitorId = id, DueAt = now.AddMinutes(-1), NotBefore = now.AddHours(-1) };
 
 Test("Nonzero monitor minimum maps correctly", () =>
-{ var range = new BrightnessRange(20, 60, 100); Expect(range.Percent == 50 && range.FromPercent(0) == 20 && range.FromPercent(100) == 100 && range.FromPercent(50) == 60); });
+{ var range = new MonitorRange(20, 60, 100); Expect(range.Percent == 50 && range.FromPercent(0) == 20 && range.FromPercent(100) == 100 && range.FromPercent(50) == 60); });
 Test("Non-percent hardware ranges retain endpoints", () =>
-{ var range = new BrightnessRange(0, 127, 255); Expect(range.Percent == 50 && range.FromPercent(100) == 255 && range.FromPercent(50) == 128); });
+{ var range = new MonitorRange(0, 127, 255); Expect(range.Percent == 50 && range.FromPercent(100) == 255 && range.FromPercent(50) == 128); });
 Test("Brightness rejects invalid monitor ranges", () =>
-{ foreach (var range in new[] { new BrightnessRange(0, 0, 0), new BrightnessRange(10, 9, 20), new BrightnessRange(0, 21, 20) }) { Expect(!range.IsValid); Throws<InvalidOperationException>(() => range.FromPercent(50)); } });
+{ foreach (var range in new[] { new MonitorRange(0, 0, 0), new MonitorRange(10, 9, 20), new MonitorRange(0, 21, 20) }) { Expect(!range.IsValid); Throws<InvalidOperationException>(() => range.FromPercent(50)); } });
 Test("Brightness rejects out-of-range commands", () =>
-{ var range = new BrightnessRange(0, 50, 100); Throws<ArgumentOutOfRangeException>(() => range.FromPercent(-1)); Throws<ArgumentOutOfRangeException>(() => range.FromPercent(101)); });
+{ var range = new MonitorRange(0, 50, 100); Throws<ArgumentOutOfRangeException>(() => range.FromPercent(-1)); Throws<ArgumentOutOfRangeException>(() => range.FromPercent(101)); });
 Test("Countdown only fires after deadline", () =>
 { var rule = Once(); Expect(SchedulePlanner.Plan([rule], now.AddMinutes(-2), utc, ["a"]).Writes.Count == 0); Expect(SchedulePlanner.Plan([rule], now, utc, ["a"]).Writes.Single().Brightness == 40); });
 Test("Disabled timers never write", () =>
@@ -77,6 +77,16 @@ AsyncTest("Backend failures release the serialization gate", async () =>
 { var backend = new FakeBackend { FailNext = true }; await using var access = new MonitorAccess(backend); try { await access.SetAsync("a", 30); } catch (IOException) { } var result = await access.SetAsync("a", 60); Expect(result.Success); });
 AsyncTest("Disposal waits for in-flight native work", async () =>
 { var backend = new FakeBackend(); var access = new MonitorAccess(backend); var write = access.SetAsync("a", 30); await backend.Started.Task; var dispose = access.DisposeAsync().AsTask(); Expect(!dispose.IsCompleted); await write; await dispose; Expect(backend.Disposed && !backend.DisposedDuringWork); });
+AsyncTest("Contrast is routed as contrast without changing brightness semantics", async () =>
+{ var backend = new FakeBackend(); await using var access = new MonitorAccess(backend); var result = await access.SetAsync("a", DisplayControl.Contrast, 64); Expect(result.Control == DisplayControl.Contrast && result.Actual == 64); var brightness = await access.SetAsync("a", 37); Expect(brightness.Control == DisplayControl.Brightness && brightness.Actual == 37); });
+AsyncTest("Brightness and contrast share the same native serialization gate", async () =>
+{ var backend = new FakeBackend(); await using var access = new MonitorAccess(backend); await Task.WhenAll(access.SetAsync("a", DisplayControl.Contrast, 60), access.SetAsync("b", DisplayControl.Brightness, 40), access.DiscoverAsync()); Expect(backend.Peak == 1 && backend.Calls == 3); });
+AsyncTest("Invalid control codes cannot reach the native backend", async () =>
+{ var backend = new FakeBackend(); await using var access = new MonitorAccess(backend); Throws<ArgumentOutOfRangeException>(() => access.SetAsync("a", (DisplayControl)255, 50)); Expect(backend.Calls == 0); });
+AsyncTest("Contrast rejects out-of-range values before hardware access", async () =>
+{ var backend = new FakeBackend(); await using var access = new MonitorAccess(backend); Throws<ArgumentOutOfRangeException>(() => access.SetAsync("a", DisplayControl.Contrast, 101)); Expect(backend.Calls == 0); });
+Test("Version 0.1 settings remain readable without enabling or changing timers", () =>
+{ var store = new SettingsStore(Path.Combine(temp, "legacy")); store.Save(new() { TimersPaused = true, Theme = "Dark", Schedules = [Daily(35) with { Enabled = false }] }); var bytes = File.ReadAllBytes(store.FilePath); var loaded = store.Load(); Expect(loaded.Warning is null && loaded.Settings.TimersPaused && !loaded.Settings.Schedules.Single().Enabled && File.ReadAllBytes(store.FilePath).SequenceEqual(bytes)); });
 
 int failed = 0;
 try
@@ -105,6 +115,6 @@ sealed class FakeBackend : IMonitorBackend
         finally { Interlocked.Decrement(ref active); }
     }
     public IReadOnlyList<MonitorSnapshot> Discover() => Work<IReadOnlyList<MonitorSnapshot>>(() => []);
-    public BrightnessResult SetBrightness(string id, int percent) => Work(() => new BrightnessResult(id, percent, true, true, percent, "Verified"));
+    public MonitorControlResult SetControl(string id, DisplayControl control, int percent) => Work(() => new MonitorControlResult(id, control, percent, true, true, percent, "Verified"));
     public void Dispose() { DisposedDuringWork = active > 0; Disposed = true; }
 }

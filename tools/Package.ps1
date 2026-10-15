@@ -4,6 +4,12 @@ $root = Split-Path $PSScriptRoot -Parent
 $version = ([xml](Get-Content (Join-Path $root 'Directory.Build.props') -Raw)).Project.PropertyGroup.Version
 $name = "OmniLux-$version-$Runtime"
 $package = Join-Path $root "build\packages\$name"
+if (Test-Path -LiteralPath $package) {
+    $resolved = [IO.Path]::GetFullPath($package)
+    $allowed = [IO.Path]::GetFullPath((Join-Path $root 'build\packages')) + '\'
+    if (!$resolved.StartsWith($allowed,[StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFileName($resolved) -ne $name) { throw 'Unsafe package cleanup path.' }
+    Remove-Item -LiteralPath $resolved -Recurse -Force
+}
 New-Item -ItemType Directory -Force -Path $package,(Join-Path $root 'dist') | Out-Null
 if (!$SkipTests) { & (Join-Path $PSScriptRoot 'Build.ps1') -Test }
 & dotnet publish (Join-Path $root 'src\OmniLux\OmniLux.csproj') -c Release -r $Runtime --self-contained true -o $package --nologo /p:DebugType=None /p:DebugSymbols=false
@@ -21,7 +27,7 @@ foreach ($framework in $frameworks) {
     }
 }
 if (@(Get-ChildItem -LiteralPath $licenseDirectory -File).Count -lt 3) { throw 'Runtime licenses and notices were not found in the restored runtime packs.' }
-foreach ($file in @('README.md','README.ko.md','LICENSE','THIRD_PARTY_NOTICES.md')) {
+foreach ($file in @('README.md','README.ko.md','CHANGELOG.md','LICENSE','THIRD_PARTY_NOTICES.md')) {
     Copy-Item -LiteralPath (Join-Path $root $file) -Destination $package -Force
 }
 Copy-Item -LiteralPath (Join-Path $root 'docs') -Destination $package -Recurse -Force

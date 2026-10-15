@@ -1,9 +1,21 @@
 <Application x:Class="OmniLux.App"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:controls="clr-namespace:OmniLux.Controls"
  ShutdownMode="OnExplicitShutdown">
  <Application.Resources>
   <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+  <DataTemplate x:Key="MonitorSettingTemplate">
+   <StackPanel Margin="0,10,0,0">
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+     <TextBlock Text="{Binding Label}" FontSize="12" />
+     <TextBlock Grid.Column="1" Text="{Binding ValueText}" FontSize="12" Foreground="{DynamicResource AccentBrush}" />
+     <Button Grid.Column="2" Command="{Binding CommitCommand}" Style="{DynamicResource QuietButton}" Padding="7,1" Margin="7,0,0,0" Visibility="{Binding HasPendingChange, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="{Binding AccessibleName, StringFormat=Apply {0}}" ToolTip="Apply preview"><TextBlock Text="&#xE73E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" FontSize="12" /></Button>
+    </Grid>
+    <Slider Value="{Binding Value, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" controls:SliderApply.Command="{Binding CommitCommand}" IsEnabled="{Binding IsAvailable}" Visibility="{Binding IsAvailable, Converter={StaticResource BoolVisibility}}" AutomationProperties.Name="{Binding AccessibleName}" ToolTip="Release or leave the slider to apply" Margin="0,3,0,0" />
+    <TextBlock Text="{Binding Status}" FontSize="10" Foreground="{DynamicResource MutedBrush}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Status}" AutomationProperties.LiveSetting="Polite" Visibility="{Binding HasStatus, Converter={StaticResource BoolVisibility}}" />
+   </StackPanel>
+  </DataTemplate>
   <SolidColorBrush x:Key="BackgroundBrush" Color="#F5F6F8" />
   <SolidColorBrush x:Key="SidebarBrush" Color="#ECEEF2" />
   <SolidColorBrush x:Key="CardBrush" Color="White" />

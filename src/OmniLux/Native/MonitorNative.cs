@@ -72,6 +72,14 @@ internal static class MonitorNative
 
     [DllImport("dxva2.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetMonitorContrast(SafePhysicalMonitor monitor, out uint minimum, out uint current, out uint maximum);
+
+    [DllImport("dxva2.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetMonitorContrast(SafePhysicalMonitor monitor, uint value);
+
+    [DllImport("dxva2.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetVCPFeatureAndVCPFeatureReply(SafePhysicalMonitor monitor, byte code,
         out uint type, out uint current, out uint maximum);
 

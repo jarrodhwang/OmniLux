@@ -27,6 +27,7 @@ public partial class App : Application
             string? hardwarePath = ValueAfter(args.Args, "--hardware-test");
             string? startupPath = ValueAfter(args.Args, "--startup-test");
             bool demo = args.Args.Contains("--demo", StringComparer.OrdinalIgnoreCase);
+            bool quickControls = args.Args.Contains("--quick-controls", StringComparer.OrdinalIgnoreCase);
             if (startupPath is not null)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(startupPath))!);
@@ -47,7 +48,12 @@ public partial class App : Application
             }
             instance = new SingleInstance(smokeDirectory is not null || demo ? Guid.NewGuid().ToString("N") : null);
             if (args.Args.Contains("--exit", StringComparer.OrdinalIgnoreCase)) { if (!instance.IsOwner) instance.SignalExit(); Shutdown(); return; }
-            if (!instance.IsOwner) { if (!args.Args.Contains("--tray", StringComparer.OrdinalIgnoreCase)) instance.SignalShow(); Shutdown(); return; }
+            if (!instance.IsOwner)
+            {
+                if (quickControls) instance.SignalQuickControls();
+                else if (!args.Args.Contains("--tray", StringComparer.OrdinalIgnoreCase)) instance.SignalShow();
+                Shutdown(); return;
+            }
             string directory = smokeDirectory is not null ? Path.Combine(Path.GetFullPath(smokeDirectory), "profile-" + Guid.NewGuid().ToString("N"))
                 : demo ? Path.Combine(Path.GetTempPath(), "OmniLux-demo", Guid.NewGuid().ToString("N"))
                 : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "OmniLux");
@@ -55,14 +61,16 @@ public partial class App : Application
             var store = new SettingsStore(directory);
             var loaded = store.Load();
             ThemeManager.Apply(loaded.Settings.Theme);
-            access = new MonitorAccess(demo ? new DemoMonitorBackend() : new DdcMonitorBackend());
+            IMonitorBackend monitorBackend = demo ? new DemoMonitorBackend() : new DdcMonitorBackend();
+            access = new MonitorAccess(monitorBackend);
             model = new MainViewModel(access, store, new StartupService(), log, loaded, ThemeManager.Apply);
             window = new MainWindow(model);
             MainWindow = window;
             tray = new TrayService(model, () => Dispatcher.BeginInvoke(window.ShowFromTray), () => Dispatcher.BeginInvoke(Quit));
-            instance.Listen(() => Dispatcher.BeginInvoke(window.ShowFromTray), () => Dispatcher.BeginInvoke(Quit));
+            instance.Listen(() => Dispatcher.BeginInvoke(window.ShowFromTray), () => Dispatcher.BeginInvoke(Quit),
+                () => Dispatcher.BeginInvoke(() => tray.ShowQuickControls(false)));
             window.EnsureNativeWindow();
-            if (!args.Args.Contains("--tray", StringComparer.OrdinalIgnoreCase)) window.Show();
+            if (!quickControls && !args.Args.Contains("--tray", StringComparer.OrdinalIgnoreCase)) window.Show();
             DispatcherUnhandledException += (_, error) =>
             {
                 log.Write("unhandled-ui-error", error.Exception.ToString());
@@ -71,7 +79,8 @@ public partial class App : Application
                     "OmniLux", MessageBoxButton.OK, MessageBoxImage.Error);
             };
             await model.RefreshAsync();
-            if (smokeDirectory is not null) await SmokeRunner.RunAsync(this, window, model, tray, smokeDirectory, demo);
+            if (quickControls) tray.ShowQuickControls(false);
+            if (smokeDirectory is not null) await SmokeRunner.RunAsync(this, window, model, tray, smokeDirectory, monitorBackend as DemoMonitorBackend);
         }
         catch (Exception ex)
         {

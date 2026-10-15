@@ -1,17 +1,18 @@
 # Validation scope
 
-Local validation on **2026-10-14 (UTC)**, Windows 11 Pro x64 (build 26200), .NET SDK 10.0.401.
+Version **0.2.0**, local validation on **2026-10-15 (UTC)**, Windows 11 Pro x64 (build 26200), .NET SDK 10.0.401.
 Keep synthetic, native UI, registry, and physical monitor evidence separate.
 
 | Layer | Checks and evidence |
 | --- | --- |
 | Build | Release builds with warnings treated as errors. No external NuGet dependencies. |
-| Core regression | 30 tests cover native ranges, input bounds, countdown/daily planning, missed occurrences, targeting, disconnected displays, DST gaps/repeats, settings corruption/schema/backup, serialization, canceled queued requests, driver failures, and disposal. |
-| Demo UI | 19 checks exercise real WPF windows and controls, simulated slider write/readback, all-display control, countdown engine completion, timer editor validation, navigation, theme screenshots, persistence, close/minimize-to-tray, restore, and minimum window size. Demo mode never calls DDC/CI. |
-| Native UI | 15 checks use actual display discovery. Windows computer use also exercised a visible slider, observed verified brightness, and restored the original value. |
-| Physical DDC/CI | DELL S2725DS over DisplayPort: 75 → 76 → 75; Alienware AW2521HFL: 60 → 61 → 60; DELL S2725DS over HDMI: 75 → 76 → 75. Changes and exact restoration were confirmed by native monitor readback. |
+| Core regression | 35 tests cover control ranges/bounds, brightness/contrast routing, a shared serialization gate, canceled queued requests, native failures/disposal, schedules/DST, settings corruption/backup/schema, and unchanged version 0.1 settings. |
+| Demo UI | 34 checks exercise real WPF controls with a fake backend: zero writes while holding/dragging, no commit when leaving during a held drag, one final write per target, duplicate-release suppression, keyboard/mouse-leave apply, contrast support/failure rollback, timer completion/editor validation, tray sliders without the main window, Escape cancellation, window bounds, themes, and minimum size. Demo mode never calls DDC/CI. |
+| Native UI | 18 checks use actual display discovery, real main and quick-control windows, monitor rows, work-area bounds, editor/navigation, and close/reopen behavior. |
+| Physical DDC/CI | Six supported-control checks passed. DELL S2725DS DisplayPort and HDMI: brightness 75 → 76 → 75, contrast 80 → 81 → 80. Alienware AW2521HFL: brightness 75 → 76 → 75, contrast 93 → 94 → 93. Native readback confirmed each change and exact restoration. |
 | Startup | Enable, disable, quoted executable command, and restoration of the original HKCU startup value. This verifies registration, not an actual reboot or sign-in cycle. |
-| Installer | All 13 checks passed: installation, all payload hashes, uninstaller registration, startup, installed UI smoke, tray-only launch, second-instance reopen, cooperative exit, update path, and uninstall cleanup. |
+| Upgrade | All 10 checks passed using the published, SHA-256-verified 0.1.0 setup as a real baseline: baseline version, upgrade version/path, unchanged settings bytes, all payload hashes, enabled/disabled startup retention across repeated upgrades, and explicit task override. The original startup value was restored. |
+| Fresh installer | `Test-Installer.ps1` covers 13 installation/update/uninstall checks on a clean user profile. Version 0.1 passed locally; the 0.2 CI workflow runs it when its runner has an interactive desktop. This is separate from the local upgrade check. |
 
 Commands:
 
@@ -20,13 +21,15 @@ Commands:
 .\tools\Package.ps1 -SkipTests
 .\tools\Build-Installer.ps1
 .\tools\Test-App.ps1 -Hardware -Startup
+.\tools\Test-Upgrade.ps1
 .\tools\Test-Installer.ps1
 ```
 
 The test scripts write JSON receipts and screenshots under the ignored `build/validation/` directory.
 They use isolated smoke-test profiles and never publish local activity logs or monitor identifiers.
-Installer tests refuse to replace an existing registered OmniLux installation. Hardware diagnostics
-restore the exact original raw brightness, not a rounded percentage. Documentation screenshots use
+Fresh installer tests refuse to replace an existing registered OmniLux installation; upgrade tests
+deliberately update that registered application. Hardware diagnostics restore each exact original
+brightness and contrast value, not a rounded percentage. Documentation screenshots use
 demo monitors.
 
 Readback verifies the monitor-reported setting; it does not measure physical panel luminance.

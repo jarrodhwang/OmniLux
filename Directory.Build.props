@@ -4,7 +4,7 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Authors>Jarrod Hwang</Authors>
     <RepositoryUrl>https://github.com/jarrodhwang/OmniLux</RepositoryUrl>
     <Copyright>Copyright © 2026 Jarrod Hwang</Copyright>

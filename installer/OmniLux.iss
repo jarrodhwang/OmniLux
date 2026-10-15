@@ -1,5 +1,5 @@
 #ifndef ProductVersion
-  #define ProductVersion "0.1.0"
+  #define ProductVersion "0.2.0"
 #endif
 #ifndef PayloadDir
   #error Pass /DPayloadDir to the compiler.
@@ -59,6 +59,45 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 Filename: "{app}\OmniLux.exe"; Description: "Launch OmniLux"; Flags: nowait postinstall skipifsilent
 
 [Code]
+var StartupPreferenceLoaded: Boolean;
+
+function HasTaskOverride(): Boolean;
+var Index: Integer; Argument: String;
+begin
+  Result := False;
+  for Index := 1 to ParamCount do begin
+    Argument := Uppercase(ParamStr(Index));
+    if (Pos('/TASKS=', Argument) = 1) or (Pos('/MERGETASKS=', Argument) = 1) then Result := True;
+  end;
+end;
+
+procedure LoadStartupPreference();
+var ExistingCommand: String;
+begin
+  if StartupPreferenceLoaded or HasTaskOverride() then Exit;
+  StartupPreferenceLoaded := True;
+  if RegKeyExists(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{CD3AAB20-7D7C-4F10-BEA8-A5A317833C76}_is1') then begin
+    if RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'OmniLux', ExistingCommand) and (ExistingCommand <> '') then begin
+      WizardSelectTasks('startup');
+      Log('OmniLux: preserving enabled startup');
+    end else begin
+      WizardSelectTasks('!startup');
+      Log('OmniLux: preserving disabled startup');
+    end;
+  end;
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if CurPageID = wpSelectTasks then LoadStartupPreference();
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if (CurStep = ssPostInstall) and not WizardIsTaskSelected('startup') then
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'OmniLux');
+end;
+
 procedure StopOmniLux();
 var ExitCode: Integer;
 begin
@@ -70,6 +109,8 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
+  LoadStartupPreference();
+  Log('OmniLux selected tasks: ' + WizardSelectedTasks(False));
   StopOmniLux();
   Result := '';
 end;

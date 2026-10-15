@@ -10,6 +10,7 @@ if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notm
 $package = [IO.Path]::GetFullPath($PackageDirectory)
 $manifest = Get-Content -LiteralPath (Join-Path $package 'manifest.json') -Raw | ConvertFrom-Json
 if ($manifest.runtime -ne 'win-x64') { throw 'This installer packages the Windows x64 build.' }
+if ($manifest.version -ne $version) { throw 'Package version does not match the source version.' }
 foreach ($file in $manifest.files) {
     $path = [IO.Path]::GetFullPath((Join-Path $package $file.path))
     if (!$path.StartsWith($package + '\',[StringComparison]::OrdinalIgnoreCase) -or (Get-FileHash -LiteralPath $path).Hash -ne $file.sha256) { throw "Package validation failed: $($file.path)" }
@@ -18,5 +19,8 @@ foreach ($file in $manifest.files) {
 if ($LASTEXITCODE) { throw 'Installer compilation failed.' }
 $setup = Join-Path $root "dist\OmniLux-$version-Setup.exe"
 Copy-Item -LiteralPath $setup -Destination (Join-Path $root 'dist\OmniLux-Setup.exe') -Force
-Get-ChildItem (Join-Path $root 'dist') -File | Where-Object { $_.Extension -in '.exe','.zip' } | ForEach-Object { '{0}  {1}' -f (Get-FileHash -LiteralPath $_.FullName).Hash.ToLowerInvariant(),$_.Name } | Set-Content (Join-Path $root 'dist\SHA256SUMS.txt') -Encoding ASCII
+@('OmniLux-Setup.exe',"OmniLux-$version-win-x64.zip") | ForEach-Object {
+    $asset = Join-Path $root ('dist\' + $_)
+    '{0}  {1}' -f (Get-FileHash -LiteralPath $asset).Hash.ToLowerInvariant(),$_
+} | Set-Content (Join-Path $root 'dist\SHA256SUMS.txt') -Encoding ASCII
 Write-Output $setup

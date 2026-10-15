@@ -73,8 +73,8 @@ public partial class MainWindow : Window
         SettingsPage.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
     }
     private async void Refresh_Click(object sender, RoutedEventArgs args) => await model.RefreshAsync();
-    private void Preset_Click(object sender, RoutedEventArgs args)
-    { if (int.TryParse((sender as Button)?.Tag as string, out int value)) model.SetAll(value); }
+    private async void Preset_Click(object sender, RoutedEventArgs args)
+    { if (int.TryParse((sender as Button)?.Tag as string, out int value)) await model.SetAllAsync(value); }
     private void AddTimer_Click(object sender, RoutedEventArgs args) => EditTimer(null);
     private void EditTimer_Click(object sender, RoutedEventArgs args) => EditTimer(((FrameworkElement)sender).DataContext as TimerViewModel);
     private void EditTimer(TimerViewModel? entry)

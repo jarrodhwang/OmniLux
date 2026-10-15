@@ -26,7 +26,7 @@
       <RadioButton x:Name="TimersNav" GroupName="Navigation" Style="{StaticResource NavButton}" Checked="Navigation_Checked" Tag="Timers" AutomationProperties.Name="Timers"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE823;" Style="{StaticResource Glyph}" Margin="0,0,12,0" /><TextBlock Text="Timers" /></StackPanel></RadioButton>
       <RadioButton x:Name="SettingsNav" GroupName="Navigation" Style="{StaticResource NavButton}" Checked="Navigation_Checked" Tag="Settings" AutomationProperties.Name="Settings"><StackPanel Orientation="Horizontal"><TextBlock Text="&#xE713;" Style="{StaticResource Glyph}" Margin="0,0,12,0" /><TextBlock Text="Settings" /></StackPanel></RadioButton>
      </StackPanel>
-     <StackPanel VerticalAlignment="Bottom" Margin="14,0,0,0"><TextBlock Text="Hardware brightness" Style="{StaticResource Caption}" /><TextBlock Text="v0.1.0" Style="{StaticResource Caption}" FontSize="11" Margin="0,5,0,0" /></StackPanel>
+     <StackPanel VerticalAlignment="Bottom" Margin="14,0,0,0"><TextBlock Text="Hardware brightness" Style="{StaticResource Caption}" /><TextBlock Text="{Binding VersionText}" Style="{StaticResource Caption}" FontSize="11" Margin="0,5,0,0" /></StackPanel>
     </Grid>
    </Border>
    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -38,24 +38,22 @@
       </Grid>
       <Border Style="{StaticResource Card}" IsEnabled="{Binding CanRefresh}" Visibility="{Binding HasAdjustable, Converter={StaticResource BoolVisibility}}">
        <StackPanel>
-        <Grid><TextBlock Text="All adjustable displays" FontSize="14" FontWeight="Medium" /><TextBlock Text="{Binding AllBrightnessText}" HorizontalAlignment="Right" FontSize="16" Foreground="{DynamicResource AccentBrush}" /></Grid>
-        <Slider x:Name="AllSlider" Value="{Binding AllBrightness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,14,0,8" AutomationProperties.Name="All monitors brightness" />
-        <StackPanel Orientation="Horizontal"><Button Content="20%" Tag="20" Click="Preset_Click" Padding="14,5" Margin="0,0,8,0" /><Button Content="50%" Tag="50" Click="Preset_Click" Padding="14,5" Margin="0,0,8,0" /><Button Content="80%" Tag="80" Click="Preset_Click" Padding="14,5" /></StackPanel>
+        <TextBlock Text="All adjustable displays" FontSize="14" FontWeight="Medium" />
+        <ContentControl x:Name="AllBrightnessControl" Content="{Binding AllBrightness}" ContentTemplate="{StaticResource MonitorSettingTemplate}" />
+        <ContentControl Content="{Binding AllContrast}" ContentTemplate="{StaticResource MonitorSettingTemplate}" Visibility="{Binding AllContrast.IsAvailable, Converter={StaticResource BoolVisibility}}" />
+        <StackPanel Orientation="Horizontal" Margin="0,12,0,0"><Button Content="20%" Tag="20" Click="Preset_Click" Padding="14,5" Margin="0,0,8,0" ToolTip="All displays brightness 20%" /><Button Content="50%" Tag="50" Click="Preset_Click" Padding="14,5" Margin="0,0,8,0" ToolTip="All displays brightness 50%" /><Button Content="80%" Tag="80" Click="Preset_Click" Padding="14,5" ToolTip="All displays brightness 80%" /></StackPanel>
        </StackPanel>
       </Border>
       <ItemsControl x:Name="MonitorItems" ItemsSource="{Binding Monitors}" IsEnabled="{Binding CanRefresh}">
        <ItemsControl.ItemTemplate><DataTemplate>
-        <Border Style="{StaticResource Card}">
-         <StackPanel>
-          <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-           <Border Width="43" Height="43" Background="{DynamicResource SelectionBrush}" CornerRadius="8" Margin="0,0,13,0"><TextBlock Text="&#xE7F4;" Style="{StaticResource Glyph}" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" /></Border>
-           <StackPanel Grid.Column="1" VerticalAlignment="Center"><TextBlock Text="{Binding Name}" FontSize="15" FontWeight="Medium" TextWrapping="Wrap" /><TextBlock Text="{Binding Connection}" Style="{StaticResource Caption}" Margin="0,4,0,0" /></StackPanel>
-           <TextBlock Grid.Column="2" Text="{Binding BrightnessText}" FontSize="26" FontWeight="Light" Margin="16,0,0,0" />
-          </Grid>
-          <Slider Value="{Binding Brightness, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanControl}" Visibility="{Binding CanControl, Converter={StaticResource BoolVisibility}}" Margin="0,16,0,7" AutomationProperties.Name="{Binding Name, StringFormat={}{0} brightness}" />
-          <Grid Margin="0,4,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding Status}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,14,0" AutomationProperties.LiveSetting="Polite" /><TextBlock Grid.Column="1" Text="{Binding Protocol}" Style="{StaticResource Caption}" FontSize="11" VerticalAlignment="Top" /></Grid>
-         </StackPanel>
-        </Border>
+        <Border Style="{StaticResource Card}"><StackPanel>
+         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+          <Border Width="37" Height="37" Background="{DynamicResource SelectionBrush}" CornerRadius="8" Margin="0,0,13,0"><TextBlock Text="&#xE7F4;" Style="{StaticResource Glyph}" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Center" /></Border>
+          <StackPanel Grid.Column="1"><TextBlock Text="{Binding Name}" FontSize="15" FontWeight="Medium" TextWrapping="Wrap" /><TextBlock Text="{Binding Connection}" Style="{StaticResource Caption}" Margin="0,3,0,0" /></StackPanel>
+         </Grid>
+         <ContentControl Content="{Binding Brightness}" ContentTemplate="{StaticResource MonitorSettingTemplate}" />
+         <ContentControl Content="{Binding Contrast}" ContentTemplate="{StaticResource MonitorSettingTemplate}" />
+        </StackPanel></Border>
        </DataTemplate></ItemsControl.ItemTemplate>
       </ItemsControl>
       <Border Style="{StaticResource Card}" Visibility="{Binding HasNoMonitors, Converter={StaticResource BoolVisibility}}"><StackPanel HorizontalAlignment="Center" Margin="20"><TextBlock Text="&#xE7F4;" Style="{StaticResource Glyph}" FontSize="32" HorizontalAlignment="Center" Margin="0,0,0,14" /><TextBlock Text="No monitors found" FontSize="17" HorizontalAlignment="Center" /><TextBlock Text="Connect a display and refresh." Style="{StaticResource Caption}" Margin="0,8,0,0" HorizontalAlignment="Center" /></StackPanel></Border>

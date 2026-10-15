@@ -18,42 +18,24 @@ public sealed class MainViewModel : ObservableObject
     private bool discovering, timerRunning, closing, refreshAgain;
     private bool startupEnabled;
     private bool settingsWritable;
-    private int allBrightness = 50;
-    private CancellationTokenSource? allPending;
     private string status = "Connecting to monitors…";
     public ObservableCollection<MonitorViewModel> Monitors { get; } = [];
     public ObservableCollection<TimerViewModel> Timers { get; } = [];
+    public MonitorSettingViewModel AllBrightness { get; }
+    public MonitorSettingViewModel AllContrast { get; }
+    public string VersionText => "v" + (typeof(MainViewModel).Assembly.GetName().Version?.ToString(3) ?? "0.2.0");
     public string Status { get => status; private set => Set(ref status, value); }
     public bool IsDiscovering { get => discovering; private set { Set(ref discovering, value); Notify(nameof(CanRefresh)); } }
     public bool CanRefresh => !IsDiscovering;
     public bool HasMonitors => Monitors.Count > 0;
     public bool HasNoMonitors => !HasMonitors && !IsDiscovering;
-    public bool HasAdjustable => Monitors.Any(x => x.CanControl);
+    public bool HasAdjustable => Monitors.Any(x => x.HasAnyControl);
     public bool HasNoTimers => Timers.Count == 0;
-    public string MonitorCount => $"{Monitors.Count} connected · {Monitors.Count(x => x.CanControl)} adjustable";
+    public string MonitorCount => $"{Monitors.Count} connected · {Monitors.Count(x => x.HasAnyControl)} adjustable";
     public string TimerSummary => TimersPaused ? "Timers paused" : $"{Timers.Count(x => x.Enabled)} active timers";
     public string StoragePath => Path.GetDirectoryName(store.FilePath)!;
     public bool SettingsWritable => settingsWritable;
     public event Action? Changed;
-
-    public int AllBrightness
-    {
-        get => allBrightness;
-        set
-        {
-            value = Math.Clamp(value, 0, 100);
-            if (Set(ref allBrightness, value)) { Notify(nameof(AllBrightnessText)); RequestAll(value); }
-        }
-    }
-    public string AllBrightnessText
-    {
-        get
-        {
-            if (allPending is not null) return $"{AllBrightness}%";
-            var values = Monitors.Where(x => x.CanControl).Select(x => x.Actual).Distinct().ToList();
-            return values.Count > 1 ? "Mixed" : values.FirstOrDefault() is { } value ? $"{value}%" : "—";
-        }
-    }
 
     public string Theme
     {
@@ -107,6 +89,10 @@ public sealed class MainViewModel : ObservableObject
         this.access = access; this.store = store; this.startup = startup; this.log = log;
         settings = loaded.Settings; settingsWritable = loaded.Warning is null;
         this.setTheme = setTheme;
+        AllBrightness = new("all", "All displays", DisplayControl.Brightness, new(null, false, ""), RequestAllAsync, true,
+            () => CancelGroupPreview(DisplayControl.Brightness));
+        AllContrast = new("all", "All displays", DisplayControl.Contrast, new(null, false, ""), RequestAllAsync, true,
+            () => CancelGroupPreview(DisplayControl.Contrast));
         try { startupEnabled = startup.IsEnabled; } catch (Exception ex) when (ex is IOException or System.Security.SecurityException) { log.Write("startup-read-failed", ex.Message); }
         foreach (var rule in settings.Schedules) Timers.Add(CreateTimer(rule));
         timer = new(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(5) };
@@ -120,22 +106,20 @@ public sealed class MainViewModel : ObservableObject
         if (closing) return;
         if (IsDiscovering) { refreshAgain = true; return; }
         bool refreshed = false;
-        IsDiscovering = true; Status = "Reading monitor brightness…";
-        allPending?.Cancel();
-        foreach (var monitor in Monitors) monitor.Pending?.Cancel();
+        IsDiscovering = true; Status = "Reading monitor controls…";
+        CancelManualRequests();
         try
         {
             var snapshots = await access.DiscoverAsync();
             if (closing) return;
             Monitors.Clear();
-            foreach (var snapshot in snapshots) Monitors.Add(new(snapshot, RequestMonitor));
-            var first = Monitors.FirstOrDefault(x => x.CanControl);
-            if (first is not null) { allBrightness = first.Brightness; Notify(nameof(AllBrightness)); Notify(nameof(AllBrightnessText)); }
+            foreach (var snapshot in snapshots) Monitors.Add(new(snapshot, RequestMonitorAsync));
+            UpdateAggregates();
             Status = settingsWritable ? (HasAdjustable ? "Monitors ready" : "No adjustable DDC/CI monitors found")
                 : "Saved settings need recovery. Open Settings to reset them; brightness controls are available.";
             foreach (var property in new[] { nameof(HasMonitors), nameof(HasNoMonitors), nameof(HasAdjustable), nameof(MonitorCount) }) Notify(property);
             foreach (var entry in Timers) entry.Refresh();
-            log.Write("monitors-discovered", snapshots.Select(x => new { x.Name, x.CanControl, x.Brightness, x.Protocol }));
+            log.Write("monitors-discovered", snapshots.Select(x => new { x.Name, x.Brightness, x.Contrast }));
             Changed?.Invoke();
             refreshed = true;
         }
@@ -145,51 +129,92 @@ public sealed class MainViewModel : ObservableObject
         else if (refreshed) await RunTimersAsync();
     }
 
-    private async void RequestMonitor(MonitorViewModel monitor, int value)
+    private async Task RequestMonitorAsync(MonitorSettingViewModel setting, int value)
     {
-        if (!monitor.CanControl || closing || IsDiscovering) return;
-        monitor.Pending?.Cancel();
-        var pending = monitor.Pending = new CancellationTokenSource();
-        long version = ++monitor.RequestVersion;
-        monitor.Status = "Applying…"; monitor.IsApplying = true;
+        if (!setting.IsAvailable || closing || IsDiscovering) return;
+        setting.Pending?.Cancel();
+        var pending = setting.Pending = new CancellationTokenSource();
+        long version = ++setting.RequestVersion;
+        setting.Status = "Applying…"; setting.IsApplying = true; setting.LastResult = null;
         try
         {
-            await Task.Delay(180, pending.Token);
-            var result = await access.SetAsync(monitor.Id, value, pending.Token);
-            log.Write("brightness-manual", new { monitor.Name, result.Requested, result.Actual, result.Success, result.Verified });
-            if (version != monitor.RequestVersion || closing || !Monitors.Contains(monitor)) return;
-            monitor.Readback(result, !result.Success || result.Verified);
-            Status = result.Success && result.Verified ? $"{monitor.Name} · {result.Actual}%" : result.Message;
-            Notify(nameof(AllBrightnessText));
-            Changed?.Invoke();
+            var result = await access.SetAsync(setting.MonitorId, setting.Control, value, pending.Token);
+            log.Write("control-manual", new { setting.MonitorName, result.Control, result.Requested, result.Actual, result.Success, result.Verified });
+            if (closing || !Monitors.Any(x => x.Id == setting.MonitorId && ReferenceEquals(x.Setting(setting.Control), setting))) return;
+            setting.Readback(result, version);
+            if (version == setting.RequestVersion)
+                Status = result.Success && result.Verified ? $"{setting.MonitorName} · {setting.Label} {result.Actual}%" : result.Message;
+            UpdateAggregates(); Changed?.Invoke();
         }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { if (version == monitor.RequestVersion) { monitor.Status = ex.Message; Status = "Brightness change failed: " + ex.Message; } log.Write("brightness-error", ex.Message); }
-        finally { if (version == monitor.RequestVersion) monitor.IsApplying = false; if (ReferenceEquals(monitor.Pending, pending)) monitor.Pending = null; pending.Dispose(); }
+        catch (Exception ex)
+        {
+            if (version == setting.RequestVersion)
+            {
+                setting.Readback(new(setting.MonitorId, setting.Control, value, false, false, null, "Change failed: " + ex.Message), version);
+                Status = "Monitor change failed: " + ex.Message;
+            }
+            log.Write("control-error", ex.Message);
+        }
+        finally
+        {
+            if (version == setting.RequestVersion) setting.IsApplying = false;
+            if (ReferenceEquals(setting.Pending, pending)) setting.Pending = null;
+            pending.Dispose();
+        }
     }
 
-    private async void RequestAll(int value)
+    private async Task RequestAllAsync(MonitorSettingViewModel aggregate, int value)
     {
-        allPending?.Cancel();
-        var pending = allPending = new CancellationTokenSource();
+        if (closing || IsDiscovering) return;
+        long version = ++aggregate.RequestVersion;
+        aggregate.IsApplying = true; aggregate.Status = "Applying…";
         try
         {
-            await Task.Delay(180, pending.Token);
-            foreach (var monitor in Monitors.Where(x => x.CanControl).ToList())
+            var targets = Monitors.Select(x => x.Setting(aggregate.Control)).Where(x => x.IsAvailable).ToList();
+            await Task.WhenAll(targets.Select(x => x.SetAndCommitAsync(value)).ToList());
+            if (version == aggregate.RequestVersion)
             {
-                if (pending.IsCancellationRequested || closing) break;
-                // Individual requests share the same coalescing and serialized native path.
-                if (monitor.Brightness == value) RequestMonitor(monitor, value);
-                else monitor.Brightness = value;
+                aggregate.Status = targets.Any(x => x.HasPendingChange) ? "Newer monitor previews are pending"
+                    : targets.Any(x => x.LastResult is not { Success: true } || x.LastResult.Requested != value) ? "Some displays could not be updated"
+                    : targets.Any(x => x.LastResult is not { Verified: true }) ? "Commands sent; some monitor readback is unavailable"
+                    : $"{aggregate.Label} verified on {targets.Count} displays";
+                Status = aggregate.Status;
             }
         }
-        catch (OperationCanceledException) { }
-        finally { if (ReferenceEquals(allPending, pending)) allPending = null; Notify(nameof(AllBrightnessText)); pending.Dispose(); }
+        finally
+        {
+            if (version == aggregate.RequestVersion) aggregate.IsApplying = false;
+            UpdateAggregates();
+        }
     }
 
-    public void SetAll(int value)
+    private void CancelGroupPreview(DisplayControl control)
+    { foreach (var monitor in Monitors) monitor.Setting(control).InvalidatePending(); }
+
+    private void CancelManualRequests()
     {
-        if (AllBrightness == value) RequestAll(value); else AllBrightness = value;
+        AllBrightness.InvalidatePending(); AllContrast.InvalidatePending();
+        foreach (var monitor in Monitors) { monitor.Brightness.InvalidatePending(); monitor.Contrast.InvalidatePending(); }
+    }
+
+    private void UpdateAggregates()
+    {
+        AllBrightness.UpdateAggregate(Monitors.Select(x => x.Brightness));
+        AllContrast.UpdateAggregate(Monitors.Select(x => x.Contrast));
+    }
+
+    public Task SetAllAsync(int value, DisplayControl control = DisplayControl.Brightness)
+        => (control == DisplayControl.Brightness ? AllBrightness : AllContrast).SetAndCommitAsync(value);
+
+    public Task CommitPreviewsAsync() => Task.WhenAll(
+        new[] { AllBrightness, AllContrast }.Concat(Monitors.SelectMany(x => new[] { x.Brightness, x.Contrast }))
+            .Select(x => x.CommitAsync()));
+
+    public void CancelPreviews()
+    {
+        AllBrightness.CancelPreview(); AllContrast.CancelPreview();
+        foreach (var monitor in Monitors) { monitor.Brightness.CancelPreview(); monitor.Contrast.CancelPreview(); }
     }
 
     public void AddOrUpdateTimer(BrightnessSchedule rule)
@@ -267,25 +292,26 @@ public sealed class MainViewModel : ObservableObject
                 if (closing) break;
                 var monitor = Monitors.FirstOrDefault(x => x.Id == write.MonitorId);
                 if (monitor is null) continue;
-                monitor.Pending?.Cancel();
-                long version = ++monitor.RequestVersion;
-                monitor.IsApplying = true;
+                var setting = monitor.Brightness;
+                setting.InvalidatePending();
+                long version = ++setting.RequestVersion;
+                setting.IsApplying = true;
                 try
                 {
                     var result = await access.SetAsync(write.MonitorId, write.Brightness);
                     string outcome = !result.Success ? "Failed" : result.Verified ? "Applied" : "Unverified";
                     if (outcomes[write.ScheduleId] != "Failed" && !(outcomes[write.ScheduleId] == "Unverified" && outcome == "Applied"))
                         outcomes[write.ScheduleId] = outcome;
-                    if (monitor.RequestVersion == version)
+                    setting.Readback(result, version);
+                    if (setting.RequestVersion == version)
                     {
-                        monitor.Readback(result, true);
                         Status = result.Success && result.Verified ? $"Timer applied · {monitor.Name} · {result.Actual}%" : "Timer: " + result.Message;
                     }
                     log.Write("brightness-timer", new { write.ScheduleId, monitor.Name, result.Requested, result.Actual, result.Success, result.Verified });
-                    Notify(nameof(AllBrightnessText));
+                    UpdateAggregates();
                 }
                 catch (Exception ex) { outcomes[write.ScheduleId] = "Failed"; Status = "Timer failed: " + ex.Message; log.Write("timer-failed", ex.Message); }
-                finally { if (monitor.RequestVersion == version) monitor.IsApplying = false; }
+                finally { if (setting.RequestVersion == version) setting.IsApplying = false; }
             }
             foreach (var outcome in outcomes)
             {
@@ -321,7 +347,6 @@ public sealed class MainViewModel : ObservableObject
 
     public void Stop()
     {
-        closing = true; timer.Stop(); allPending?.Cancel();
-        foreach (var monitor in Monitors) monitor.Pending?.Cancel();
+        closing = true; timer.Stop(); CancelManualRequests();
     }
 }
